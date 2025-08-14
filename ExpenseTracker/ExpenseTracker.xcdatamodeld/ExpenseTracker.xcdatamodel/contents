@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="1" systemVersion="1" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+	<entity name="Transaction" representedClassName="Transaction" syncable="YES">
+		<attribute name="id" optional="NO" attributeType="UUIDAttributeType"/>
+		<attribute name="date" optional="NO" attributeType="Date"/>
+		<attribute name="amountOriginal" optional="NO" attributeType="Decimal"/>
+		<attribute name="currencyCode" optional="NO" attributeType="String"/>
+		<attribute name="amountInBase" optional="NO" attributeType="Decimal"/>
+		<attribute name="note" optional="YES" attributeType="String"/>
+		<attribute name="createdAt" optional="NO" attributeType="Date"/>
+		<attribute name="updatedAt" optional="NO" attributeType="Date"/>
+		<relationship name="category" optional="YES" toMany="NO" deletionRule="Nullify" destinationEntity="Category" inverseName="transactions" inverseEntity="Category"/>
+	</entity>
+	<entity name="Category" representedClassName="Category" syncable="YES">
+		<attribute name="id" optional="NO" attributeType="UUIDAttributeType"/>
+		<attribute name="name" optional="NO" attributeType="String"/>
+		<attribute name="icon" optional="YES" attributeType="String"/>
+		<attribute name="colorHex" optional="YES" attributeType="String"/>
+		<attribute name="monthlyBudgetBase" optional="YES" attributeType="Decimal"/>
+		<relationship name="transactions" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Transaction" inverseName="category" inverseEntity="Transaction"/>
+	</entity>
+	<elements>
+		<element name="Transaction" positionX="80" positionY="80" width="128" height="128"/>
+		<element name="Category" positionX="304" positionY="80" width="128" height="128"/>
+	</elements>
+</model>
