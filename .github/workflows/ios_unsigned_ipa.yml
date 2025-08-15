@@ -1,4 +1,4 @@
-name: iOS Unsigned IPA
+name: macOS Unsigned App
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
               -workspace "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
-              -destination 'generic/platform=iOS' \
+              -destination 'generic/platform=macOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -69,7 +69,7 @@ jobs:
               -project "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
-              -destination 'generic/platform=iOS' \
+              -destination 'generic/platform=macOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -88,18 +88,15 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
           echo "Found app: $APP_PATH"
 
-      - name: Create unsigned IPA
+      - name: Create unsigned App
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p Payload
-          cp -R "${APP_PATH}" Payload/
-          zip -qry ExpenseTracker-unsigned.ipa Payload
-          rm -rf Payload
-          ls -lah ExpenseTracker-unsigned.ipa
+          cp -R "${APP_PATH}" ExpenseTracker-unsigned.app
+          ls -lah ExpenseTracker-unsigned.app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ExpenseTracker-unsigned
-          path: ExpenseTracker-unsigned.ipa
+          path: ExpenseTracker-unsigned.app
