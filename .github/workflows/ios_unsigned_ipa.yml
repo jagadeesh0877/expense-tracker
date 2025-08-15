@@ -9,17 +9,17 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-14  # avoid macos-latest migration blips
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Show Xcode
+        shell: bash
         run: |
           xcodebuild -version
           xcodebuild -showsdks
 
-      # Detect workspace/project (write to env, not outputs)
       - name: Detect Xcode container
         shell: bash
         run: |
@@ -27,16 +27,18 @@ jobs:
           WS=$(find . -maxdepth 3 -name "*.xcworkspace" -print -quit || true)
           PJ=$(find . -maxdepth 3 -name "*.xcodeproj"    -print -quit || true)
           if [[ -n "$WS" ]]; then
-            echo "CONTAINER=$WS" >> $GITHUB_ENV
-            echo "CONTAINER_TYPE=workspace" >> $GITHUB_ENV
+            CT="workspace"; CO="$WS"
           elif [[ -n "$PJ" ]]; then
-            echo "CONTAINER=$PJ" >> $GITHUB_ENV
-            echo "CONTAINER_TYPE=project" >> $GITHUB_ENV
+            CT="project";   CO="$PJ"
           else
             echo "No .xcworkspace or .xcodeproj found" >&2
             exit 1
           fi
-          echo "Detected: $CONTAINER_TYPE = $CONTAINER"
+          # Export for later steps
+          echo "CONTAINER=$CO" >> "$GITHUB_ENV"
+          echo "CONTAINER_TYPE=$CT" >> "$GITHUB_ENV"
+          # Safe to print using locals (not unset env)
+          echo "Detected container: $CT -> $CO"
 
       - name: List schemes (ensure your scheme is Shared)
         shell: bash
@@ -49,7 +51,7 @@ jobs:
 
       - name: Build & Archive (no code signing)
         env:
-          SCHEME: ExpenseTracker   # <- change if your shared scheme differs
+          SCHEME: ExpenseTracker   # change if your shared scheme name differs
         shell: bash
         run: |
           set -euo pipefail
@@ -76,7 +78,6 @@ jobs:
               SKIP_INSTALL=NO
 
       - name: Find .app
-        id: find_app
         shell: bash
         run: |
           set -euo pipefail
@@ -85,7 +86,7 @@ jobs:
             echo "No .app found in archive" >&2
             exit 74
           fi
-          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
           echo "Found app: $APP_PATH"
 
       - name: Create unsigned IPA
