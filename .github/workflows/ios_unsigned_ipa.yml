@@ -3,7 +3,7 @@ name: macOS Unsigned App
 on:
   workflow_dispatch:
   push:
-    branches: [ cursor/build-production-ready-expense-tracker-with-ci-dd5c ]
+    branches: [ main ]
     tags:
       - 'build-*'
 
