@@ -1,4 +1,4 @@
-name: macOS Unsigned App
+name: iOS Unsigned IPA
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
               -workspace "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
-              -destination 'generic/platform=macOS' \
+              -destination 'generic/platform=iOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -69,34 +69,41 @@ jobs:
               -project "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
-              -destination 'generic/platform=macOS' \
+              -destination 'generic/platform=iOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
               SKIP_INSTALL=NO
           fi
 
-      - name: Find .app
+      - name: Create unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
+          # Create a temporary directory for the IPA contents
+          mkdir -p Payload
+          
+          # Find the .app in the archive
           APP_PATH=$(find "$PWD/build/ExpenseTracker.xcarchive/Products/Applications" -type d -name "*.app" -print -quit)
           if [[ -z "$APP_PATH" ]]; then
             echo "No .app found in archive" >&2
             exit 74
           fi
-          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
-          echo "Found app: $APP_PATH"
-
-      - name: Create unsigned App
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -R "${APP_PATH}" ExpenseTracker-unsigned.app
-          ls -lah ExpenseTracker-unsigned.app
+          
+          # Copy the .app to the Payload directory
+          cp -R "${APP_PATH}" Payload/
+          
+          # Create the IPA file
+          zip -r ExpenseTracker-unsigned.ipa Payload
+          
+          # Clean up
+          rm -rf Payload
+          
+          echo "Created IPA: ExpenseTracker-unsigned.ipa"
+          ls -lah ExpenseTracker-unsigned.ipa
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ExpenseTracker-unsigned
-          path: ExpenseTracker-unsigned.app
+          name: ExpenseTracker-unsigned-ipa
+          path: ExpenseTracker-unsigned.ipa
