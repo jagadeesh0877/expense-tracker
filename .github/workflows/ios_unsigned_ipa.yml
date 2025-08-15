@@ -3,61 +3,102 @@ name: iOS Unsigned IPA
 on:
   workflow_dispatch:
   push:
+    branches: [ cursor/build-production-ready-expense-tracker-with-ci-dd5c ]
     tags:
       - 'build-*'
 
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Install XcodeGen (optional)
+      - name: Show Xcode
+        shell: bash
         run: |
-          brew install xcodegen || true
-          if [ -f project.yml ]; then xcodegen generate; fi
+          xcodebuild -version
+          xcodebuild -showsdks
 
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme ExpenseTracker -project ExpenseTracker.xcodeproj
-
-      - name: Build (no signing)
+      - name: Detect Xcode container
+        shell: bash
         run: |
-          xcodebuild \
-            -scheme ExpenseTracker \
-            -configuration Release \
-            -project ExpenseTracker.xcodeproj \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
+          set -euo pipefail
+          WS=$(find . -maxdepth 3 -name "*.xcworkspace" -print -quit || true)
+          PJ=$(find . -maxdepth 3 -name "*.xcodeproj"    -print -quit || true)
+          if [[ -n "$WS" ]]; then
+            CT="workspace"; CO="$WS"
+          elif [[ -n "$PJ" ]]; then
+            CT="project";   CO="$PJ"
+          else
+            echo "No .xcworkspace or .xcodeproj found" >&2
+            exit 1
+          fi
+          echo "CONTAINER=$CO" >> "$GITHUB_ENV"
+          echo "CONTAINER_TYPE=$CT" >> "$GITHUB_ENV"
+          echo "Detected container: $CT -> $CO"
 
-      - name: Archive (no signing)
+      - name: List schemes (ensure your scheme is Shared)
+        shell: bash
         run: |
-          xcodebuild \
-            -scheme ExpenseTracker \
-            -configuration Release \
-            -project ExpenseTracker.xcodeproj \
-            -destination 'generic/platform=iOS' \
-            -archivePath $PWD/build/ExpenseTracker.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            archive
+          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
+            xcodebuild -workspace "${CONTAINER}" -list
+          else
+            xcodebuild -project  "${CONTAINER}" -list
+          fi
+
+      - name: Build & Archive (no code signing)
+        env:
+          SCHEME: ExpenseTracker   # change if your shared scheme name differs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
+          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
+            xcodebuild \
+              -workspace "${CONTAINER}" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              SKIP_INSTALL=NO
+          else
+            xcodebuild \
+              -project "${CONTAINER}" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              SKIP_INSTALL=NO
+          fi
+
+      - name: Find .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$PWD/build/ExpenseTracker.xcarchive/Products/Applications" -type d -name "*.app" -print -quit)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "No .app found in archive" >&2
+            exit 74
+          fi
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "Found app: $APP_PATH"
 
       - name: Create unsigned IPA
+        shell: bash
         run: |
-          APP_PATH="$PWD/build/ExpenseTracker.xcarchive/Products/Applications/ExpenseTracker.app"
+          set -euo pipefail
           mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-          /usr/bin/zip -r ExpenseTracker-unsigned.ipa Payload
+          cp -R "${APP_PATH}" Payload/
+          zip -qry ExpenseTracker-unsigned.ipa Payload
           rm -rf Payload
+          ls -lah ExpenseTracker-unsigned.ipa
 
-      - name: Upload IPA artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ExpenseTracker-unsigned
