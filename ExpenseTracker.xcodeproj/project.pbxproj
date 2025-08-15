@@ -116,6 +116,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SDKROOT = iphoneos;
 			};
 			name = Debug;
 		};
@@ -136,6 +139,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SDKROOT = iphoneos;
 			};
 			name = Release;
 		};
@@ -147,8 +153,22 @@
 		APP_CONFIG_LIST = { isa = XCConfigurationList; buildConfigurations = (APP_DEBUG, APP_RELEASE); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		TEST_CONFIG_LIST = { isa = XCConfigurationList; buildConfigurations = (TEST_DEBUG, TEST_RELEASE); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		PROJECT_CONFIG_LIST = { isa = XCConfigurationList; buildConfigurations = (PROJECT_DEBUG, PROJECT_RELEASE); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		PROJECT_DEBUG = { isa = XCBuildConfiguration; buildSettings = {}; name = Debug; };
-		PROJECT_RELEASE = { isa = XCBuildConfiguration; buildSettings = {}; name = Release; };
+		PROJECT_DEBUG = { 
+			isa = XCBuildConfiguration; 
+			buildSettings = {
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			}; 
+			name = Debug; 
+		};
+		PROJECT_RELEASE = { 
+			isa = XCBuildConfiguration; 
+			buildSettings = {
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			}; 
+			name = Release; 
+		};
 /* End XCConfigurationList section */
 
 	};
