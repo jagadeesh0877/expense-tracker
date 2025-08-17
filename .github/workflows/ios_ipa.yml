@@ -1,4 +1,4 @@
-name: iOS Unsigned IPA
+name: iOS AltServer IPA
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
             xcodebuild -project  "${CONTAINER}" -list
           fi
 
-      - name: Build & Archive (with basic code signing)
+      - name: Build & Archive (unsigned for AltServer)
         env:
           SCHEME: ExpenseTracker   # change if your shared scheme name differs
         shell: bash
@@ -62,9 +62,9 @@ jobs:
               -destination 'generic/platform=iOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
-              CODE_SIGNING_ALLOWED=YES \
-              CODE_SIGNING_REQUIRED=YES \
-              CODE_SIGN_IDENTITY="iPhone Developer" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO
           else
@@ -75,9 +75,9 @@ jobs:
               -destination 'generic/platform=iOS' \
               -archivePath "$ARCHIVE_PATH" \
               archive \
-              CODE_SIGNING_ALLOWED=YES \
-              CODE_SIGNING_REQUIRED=YES \
-              CODE_SIGN_IDENTITY="iPhone Developer" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO
           fi

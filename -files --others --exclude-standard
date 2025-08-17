@@ -1,0 +1,5 @@
+[33m3533995[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix Xcode project configuration - add iOS platform support and device family settings
+[33m0046fa6[m Convert workflow from macOS to iOS build - create unsigned IPA instead of app
+[33maba889a[m Update workflow to run on main branch instead of feature branch
+[33m3994b87[m Fix GitHub Actions workflow: Change from iOS to macOS build target
+[33m3684e88[m Update ios_unsigned_ipa.yml
