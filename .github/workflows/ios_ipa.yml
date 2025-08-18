@@ -145,7 +145,7 @@ jobs:
             ls -la "$APP_PATH"
             echo ""
             echo "Looking for executable:"
-            find "$APP_PATH" -type f -executable -exec ls -la {} \;
+            find "$APP_PATH" -type f -perm +111 -exec ls -la {} \;
           else
             echo "No .app found in archive"
           fi
