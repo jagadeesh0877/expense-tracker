@@ -63,26 +63,28 @@ jobs:
             xcodebuild -project  "${CONTAINER}" -list | grep -i "expensetracker" || echo "ExpenseTracker scheme not found in project"
           fi
 
-      - name: Build & Archive (unsigned for AltServer)
+      - name: Build App (unsigned for AltServer)
         env:
           SCHEME: ExpenseTracker   # change if your shared scheme name differs
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
+          BUILD_PATH="$PWD/build"
+          ARCHIVE_PATH="$BUILD_PATH/ExpenseTracker.xcarchive"
           
           echo "Building with scheme: $SCHEME"
           echo "Container type: ${CONTAINER_TYPE}"
           echo "Container: ${CONTAINER}"
           
+          # First, build the app without archiving
           if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
             xcodebuild \
               -workspace "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
               -destination 'generic/platform=iOS' \
-              -archivePath "$ARCHIVE_PATH" \
-              archive \
+              -derivedDataPath "$BUILD_PATH/DerivedData" \
+              build \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY="" \
@@ -98,8 +100,8 @@ jobs:
               -scheme "$SCHEME" \
               -configuration Release \
               -destination 'generic/platform=iOS' \
-              -archivePath "$ARCHIVE_PATH" \
-              archive \
+              -derivedDataPath "$BUILD_PATH/DerivedData" \
+              build \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY="" \
@@ -111,28 +113,37 @@ jobs:
               COMPILER_INDEX_STORE_ENABLE=NO
           fi
           
-          echo "Build completed. Checking archive contents..."
+          echo "Build completed. Checking build products..."
           
           # Wait a moment for file system to sync
           sleep 2
           
-          # Check if archive was created and has content
-          if [[ ! -d "$ARCHIVE_PATH" ]]; then
-            echo "ERROR: Archive was not created at $ARCHIVE_PATH" >&2
+          # Look for the built .app in DerivedData
+          DERIVED_DATA_PATH="$BUILD_PATH/DerivedData"
+          echo "Looking for built app in: $DERIVED_DATA_PATH"
+          
+          # Find the .app file in the build products
+          APP_PATH=$(find "$DERIVED_DATA_PATH" -name "*.app" -type d -path "*/Build/Products/Release-iphoneos/*" | head -1)
+          
+          if [[ -z "$APP_PATH" ]]; then
+            echo "ERROR: No .app found in build products" >&2
+            echo "DerivedData contents:" >&2
+            find "$DERIVED_DATA_PATH" -name "*.app" -type d 2>/dev/null || echo "No .app files found" >&2
             exit 1
           fi
           
-          ls -la "$ARCHIVE_PATH" || echo "Archive not found"
+          echo "Found built app at: $APP_PATH"
+          echo "App contents:"
+          ls -la "$APP_PATH"
           
-          # Check if Products directory exists and has content
-          PRODUCTS_DIR="$ARCHIVE_PATH/Products/Applications"
-          if [[ ! -d "$PRODUCTS_DIR" ]]; then
-            echo "ERROR: Products directory not found at $PRODUCTS_DIR" >&2
-            exit 1
-          fi
+          # Create archive structure manually
+          mkdir -p "$ARCHIVE_PATH/Products/Applications"
+          cp -R "$APP_PATH" "$ARCHIVE_PATH/Products/Applications/"
           
-          echo "Products directory contents:"
-          ls -la "$PRODUCTS_DIR"
+          echo "Created manual archive structure at: $ARCHIVE_PATH"
+          ls -la "$ARCHIVE_PATH/Products/Applications"
+          
+          echo "Archive structure created successfully"
           
           echo ""
           echo "Checking target configuration..."
