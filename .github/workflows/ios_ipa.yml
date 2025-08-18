@@ -89,7 +89,9 @@ jobs:
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO \
               ONLY_ACTIVE_ARCH=NO \
-              VALIDATE_PRODUCT=NO
+              VALIDATE_PRODUCT=NO \
+              ENABLE_BITCODE=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO
           else
             xcodebuild \
               -project "${CONTAINER}" \
@@ -104,11 +106,33 @@ jobs:
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO \
               ONLY_ACTIVE_ARCH=NO \
-              VALIDATE_PRODUCT=NO
+              VALIDATE_PRODUCT=NO \
+              ENABLE_BITCODE=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO
           fi
           
           echo "Build completed. Checking archive contents..."
+          
+          # Wait a moment for file system to sync
+          sleep 2
+          
+          # Check if archive was created and has content
+          if [[ ! -d "$ARCHIVE_PATH" ]]; then
+            echo "ERROR: Archive was not created at $ARCHIVE_PATH" >&2
+            exit 1
+          fi
+          
           ls -la "$ARCHIVE_PATH" || echo "Archive not found"
+          
+          # Check if Products directory exists and has content
+          PRODUCTS_DIR="$ARCHIVE_PATH/Products/Applications"
+          if [[ ! -d "$PRODUCTS_DIR" ]]; then
+            echo "ERROR: Products directory not found at $PRODUCTS_DIR" >&2
+            exit 1
+          fi
+          
+          echo "Products directory contents:"
+          ls -la "$PRODUCTS_DIR"
           
           echo ""
           echo "Checking target configuration..."
@@ -149,6 +173,43 @@ jobs:
           else
             echo "No .app found in archive"
           fi
+
+      - name: Verify App Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
+          PRODUCTS_DIR="$ARCHIVE_PATH/Products/Applications"
+          
+          echo "Verifying app bundle structure..."
+          
+          # Find the .app in the archive
+          APP_PATH=$(find "$PRODUCTS_DIR" -type d -name "*.app" -print -quit)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "ERROR: No .app found in archive" >&2
+            ls -la "$PRODUCTS_DIR" || true
+            exit 1
+          fi
+          
+          echo "Found app at: $APP_PATH"
+          echo "App bundle contents:"
+          ls -la "$APP_PATH"
+          
+          # Check if executable exists
+          EXECUTABLE_NAME=$(basename "$APP_PATH" .app)
+          EXECUTABLE_PATH="$APP_PATH/$EXECUTABLE_NAME"
+          
+          echo "Looking for executable: $EXECUTABLE_NAME at $EXECUTABLE_PATH"
+          
+          if [[ ! -f "$EXECUTABLE_PATH" ]]; then
+            echo "ERROR: Executable not found at $EXECUTABLE_PATH" >&2
+            echo "Available files in app bundle:" >&2
+            find "$APP_PATH" -type f -exec ls -la {} \; >&2
+            exit 1
+          fi
+          
+          echo "✅ Executable found and verified: $EXECUTABLE_PATH"
+          ls -la "$EXECUTABLE_PATH"
 
       - name: Create IPA
         shell: bash
