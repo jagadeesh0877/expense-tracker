@@ -37,325 +37,106 @@ jobs:
           echo "CONTAINER=$CO" >> "$GITHUB_ENV"
           echo "CONTAINER_TYPE=$CT" >> "$GITHUB_ENV"
           echo "Detected container: $CT -> $CO"
-          
-          echo ""
-          echo "Project structure:"
-          ls -la
-          echo ""
-          echo "Container contents:"
-          ls -la "${CO}"
 
-      - name: List schemes (ensure your scheme is Shared)
+      - name: List schemes
         shell: bash
         run: |
-          echo "Available schemes:"
           if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
             xcodebuild -workspace "${CONTAINER}" -list
           else
             xcodebuild -project  "${CONTAINER}" -list
           fi
-          
-          echo ""
-          echo "Checking if ExpenseTracker scheme exists and is shared..."
-          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
-            xcodebuild -workspace "${CONTAINER}" -list | grep -i "expensetracker" || echo "ExpenseTracker scheme not found in workspace"
-          else
-            xcodebuild -project  "${CONTAINER}" -list | grep -i "expensetracker" || echo "ExpenseTracker scheme not found in project"
-          fi
 
-      - name: Build App (with minimal signing for AltServer)
+      - name: Build & Archive (unsigned for AltServer)
         env:
-          SCHEME: ExpenseTracker   # change if your shared scheme name differs
+          SCHEME: ExpenseTracker
         shell: bash
         run: |
           set -euo pipefail
-          BUILD_PATH="$PWD/build"
-          ARCHIVE_PATH="$BUILD_PATH/ExpenseTracker.xcarchive"
+          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
           
           echo "Building with scheme: $SCHEME"
           echo "Container type: ${CONTAINER_TYPE}"
           echo "Container: ${CONTAINER}"
           
-          # Try building with minimal code signing first
+          # Use standard archive approach with no code signing
           if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
             xcodebuild \
               -workspace "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
               -destination 'generic/platform=iOS' \
-              -derivedDataPath "$BUILD_PATH/DerivedData" \
-              build \
-              CODE_SIGNING_ALLOWED=YES \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="iPhone Developer" \
+              CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO \
               ONLY_ACTIVE_ARCH=NO \
               VALIDATE_PRODUCT=NO \
               ENABLE_BITCODE=NO \
-              COMPILER_INDEX_STORE_ENABLE=NO \
-              PROVISIONING_PROFILE="" \
-              CODE_SIGN_STYLE="Automatic"
+              COMPILER_INDEX_STORE_ENABLE=NO
           else
             xcodebuild \
               -project "${CONTAINER}" \
               -scheme "$SCHEME" \
               -configuration Release \
               -destination 'generic/platform=iOS' \
-              -derivedDataPath "$BUILD_PATH/DerivedData" \
-              build \
-              CODE_SIGNING_ALLOWED=YES \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="iPhone Developer" \
+              CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
               SKIP_INSTALL=NO \
               ONLY_ACTIVE_ARCH=NO \
               VALIDATE_PRODUCT=NO \
               ENABLE_BITCODE=NO \
-              COMPILER_INDEX_STORE_ENABLE=NO \
-              PROVISIONING_PROFILE="" \
-              CODE_SIGN_STYLE="Automatic"
+              COMPILER_INDEX_STORE_ENABLE=NO
           fi
           
-          echo "Build completed. Checking build products..."
-          
-          # Wait a moment for file system to sync
-          sleep 2
-          
-          # Look for the built .app in DerivedData
-          DERIVED_DATA_PATH="$BUILD_PATH/DerivedData"
-          echo "Looking for built app in: $DERIVED_DATA_PATH"
-          
-          # Find the .app file in the build products
-          APP_PATH=$(find "$DERIVED_DATA_PATH" -name "*.app" -type d -path "*/Build/Products/Release-iphoneos/*" | head -1)
-          
-          if [[ -z "$APP_PATH" ]]; then
-            echo "ERROR: No .app found in build products" >&2
-            echo "DerivedData contents:" >&2
-            find "$DERIVED_DATA_PATH" -name "*.app" -type d 2>/dev/null || echo "No .app files found" >&2
-            exit 1
-          fi
-          
-          echo "Found built app at: $APP_PATH"
-          echo "App contents:"
-          ls -la "$APP_PATH"
-          
-          # Create archive structure manually
-          mkdir -p "$ARCHIVE_PATH/Products/Applications"
-          cp -R "$APP_PATH" "$ARCHIVE_PATH/Products/Applications/"
-          
-          echo "Created manual archive structure at: $ARCHIVE_PATH"
-          ls -la "$ARCHIVE_PATH/Products/Applications"
-          
-          echo "Archive structure created successfully"
-          
-          # Strip code signing to make it truly unsigned for AltServer
-          echo "Stripping code signing for AltServer compatibility..."
-          if [[ -f "$APP_PATH/$EXECUTABLE_NAME" ]]; then
-            echo "Stripping code signing from executable..."
-            codesign --remove-signature "$APP_PATH/$EXECUTABLE_NAME" || echo "Warning: Could not remove signature from executable"
-          fi
-          
-          # Also strip from any embedded frameworks if they exist
-          find "$APP_PATH" -name "*.framework" -type d | while read -r framework; do
-            framework_binary=$(find "$framework" -name "*.bundle" -o -name "*.dylib" -o -name "*.so" | head -1)
-            if [[ -n "$framework_binary" ]]; then
-              echo "Stripping code signing from framework: $framework_binary"
-              codesign --remove-signature "$framework_binary" || echo "Warning: Could not remove signature from framework"
-            fi
-          done
-          
-          echo "Code signing stripped successfully"
-          
-          # Verify the executable exists after stripping
-          if [[ ! -f "$APP_PATH/$EXECUTABLE_NAME" ]]; then
-            echo "ERROR: Executable still not found after build and code signing strip" >&2
-            echo "Trying alternative build approach..." >&2
-            
-            # Try building with simulator destination as fallback
-            echo "Attempting simulator build as fallback..."
-            if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
-              xcodebuild \
-                -workspace "${CONTAINER}" \
-                -scheme "$SCHEME" \
-                -configuration Release \
-                -destination 'generic/platform=iOS Simulator' \
-                -derivedDataPath "$BUILD_PATH/DerivedData-sim" \
-                build \
-                CODE_SIGNING_ALLOWED=NO \
-                CODE_SIGNING_REQUIRED=NO \
-                CODE_SIGN_IDENTITY="" \
-                DEVELOPMENT_TEAM="" \
-                SKIP_INSTALL=NO \
-                ONLY_ACTIVE_ARCH=NO \
-                VALIDATE_PRODUCT=NO \
-                ENABLE_BITCODE=NO \
-                COMPILER_INDEX_STORE_ENABLE=NO
-            else
-              xcodebuild \
-                -project "${CONTAINER}" \
-                -scheme "$SCHEME" \
-                -configuration Release \
-                -destination 'generic/platform=iOS Simulator' \
-                -derivedDataPath "$BUILD_PATH/DerivedData-sim" \
-                build \
-                CODE_SIGNING_ALLOWED=NO \
-                CODE_SIGNING_REQUIRED=NO \
-                CODE_SIGN_IDENTITY="" \
-                DEVELOPMENT_TEAM="" \
-                SKIP_INSTALL=NO \
-                ONLY_ACTIVE_ARCH=NO \
-                VALIDATE_PRODUCT=NO \
-                ENABLE_BITCODE=NO \
-                COMPILER_INDEX_STORE_ENABLE=NO
-            fi
-            
-            # Look for simulator build
-            SIM_APP_PATH=$(find "$BUILD_PATH/DerivedData-sim" -name "*.app" -type d -path "*/Build/Products/Release-iphonesimulator/*" | head -1)
-            if [[ -n "$SIM_APP_PATH" ]]; then
-              echo "Found simulator app at: $SIM_APP_PATH"
-              echo "Converting simulator app to device app..."
-              
-              # Copy simulator app and convert it
-              cp -R "$SIM_APP_PATH" "$APP_PATH"
-              echo "Converted simulator app to device app"
-            else
-              echo "ERROR: Simulator build also failed" >&2
-              exit 1
-            fi
-          fi
-          
-          echo ""
-          echo "Checking target configuration..."
-          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
-            xcodebuild -workspace "${CONTAINER}" -scheme "$SCHEME" -showBuildSettings | grep -E "(TARGET_NAME|PRODUCT_NAME|EXECUTABLE_NAME)" | head -10
-          else
-            xcodebuild -project "${CONTAINER}" -scheme "$SCHEME" -showBuildSettings | grep -E "(TARGET_NAME|PRODUCT_NAME|EXECUTABLE_NAME)" | head -10
-          fi
-
-      - name: Verify Archive Contents
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
-          
-          echo "Archive created at: $ARCHIVE_PATH"
-          ls -la "$ARCHIVE_PATH"
-          
-          echo "Archive contents:"
-          find "$ARCHIVE_PATH" -type f -name "*.app" -exec ls -la {} \;
-          
-          echo "Products directory:"
-          ls -la "$ARCHIVE_PATH/Products/Applications" || echo "Products directory not found"
-          
-          echo "Info.plist contents:"
-          find "$ARCHIVE_PATH" -name "Info.plist" -exec cat {} \; | head -20 || echo "Info.plist not found"
-          
-          echo ""
-          echo "Checking for executable files in app bundle:"
-          APP_PATH=$(find "$ARCHIVE_PATH" -type d -name "*.app" -print -quit)
-          if [[ -n "$APP_PATH" ]]; then
-            echo "App found at: $APP_PATH"
-            echo "App contents:"
-            ls -la "$APP_PATH"
-            echo ""
-            echo "Looking for executable:"
-            find "$APP_PATH" -type f -perm +111 -exec ls -la {} \;
-          else
-            echo "No .app found in archive"
-          fi
-
-      - name: Verify App Bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
-          PRODUCTS_DIR="$ARCHIVE_PATH/Products/Applications"
-          
-          echo "Verifying app bundle structure..."
-          
-          # Find the .app in the archive
-          APP_PATH=$(find "$PRODUCTS_DIR" -type d -name "*.app" -print -quit)
-          if [[ -z "$APP_PATH" ]]; then
-            echo "ERROR: No .app found in archive" >&2
-            ls -la "$PRODUCTS_DIR" || true
-            exit 1
-          fi
-          
-          echo "Found app at: $APP_PATH"
-          echo "App bundle contents:"
-          ls -la "$APP_PATH"
-          
-          # Check if executable exists
-          EXECUTABLE_NAME=$(basename "$APP_PATH" .app)
-          EXECUTABLE_PATH="$APP_PATH/$EXECUTABLE_NAME"
-          
-          echo "Looking for executable: $EXECUTABLE_NAME at $EXECUTABLE_PATH"
-          
-          if [[ ! -f "$EXECUTABLE_PATH" ]]; then
-            echo "ERROR: Executable not found at $EXECUTABLE_PATH" >&2
-            echo "Available files in app bundle:" >&2
-            find "$APP_PATH" -type f -exec ls -la {} \; >&2
-            exit 1
-          fi
-          
-          echo "✅ Executable found and verified: $EXECUTABLE_PATH"
-          ls -la "$EXECUTABLE_PATH"
+          echo "Build completed. Checking archive contents..."
+          ls -la "$ARCHIVE_PATH" || echo "Archive not found"
 
       - name: Create IPA
         shell: bash
         run: |
           set -euo pipefail
+          ARCHIVE_PATH="$PWD/build/ExpenseTracker.xcarchive"
+          
           # Create a temporary directory for the IPA contents
           mkdir -p Payload
           
           # Find the .app in the archive
-          APP_PATH=$(find "$PWD/build/ExpenseTracker.xcarchive/Products/Applications" -type d -name "*.app" -print -quit)
+          APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -type d -name "*.app" -print -quit)
           if [[ -z "$APP_PATH" ]]; then
-            echo "No .app found in archive" >&2
-            ls -la "$PWD/build/ExpenseTracker.xcarchive/Products/Applications" || true
-            exit 74
+            echo "ERROR: No .app found in archive" >&2
+            ls -la "$ARCHIVE_PATH/Products/Applications" || true
+            exit 1
           fi
           
           echo "Found app at: $APP_PATH"
-          
-          # Verify the executable exists
-          EXECUTABLE_NAME=$(basename "$APP_PATH" .app)
-          EXECUTABLE_PATH="$APP_PATH/$EXECUTABLE_NAME"
-          if [[ ! -f "$EXECUTABLE_PATH" ]]; then
-            echo "Executable not found at: $EXECUTABLE_PATH" >&2
-            ls -la "$APP_PATH" || true
-            exit 75
-          fi
-          
-          echo "Executable found at: $EXECUTABLE_PATH"
+          echo "App contents:"
+          ls -la "$APP_PATH"
           
           # Copy the .app to the Payload directory
           cp -R "${APP_PATH}" Payload/
-          
-          # Verify the copy was successful
-          if [[ ! -d "Payload/$EXECUTABLE_NAME.app" ]]; then
-            echo "Failed to copy app to Payload" >&2
-            exit 76
-          fi
           
           # Create the IPA file
           zip -r ExpenseTracker.ipa Payload
           
           # Verify the IPA was created
           if [[ ! -f "ExpenseTracker.ipa" ]]; then
-            echo "Failed to create IPA file" >&2
-            exit 77
+            echo "ERROR: Failed to create IPA file" >&2
+            exit 1
           fi
           
           # Clean up
           rm -rf Payload
           
-          echo "Created IPA: ExpenseTracker.ipa"
+          echo "✅ Created IPA: ExpenseTracker.ipa"
           ls -lah ExpenseTracker.ipa
-          
-          # Verify IPA contents
-          unzip -l ExpenseTracker.ipa | head -20
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
