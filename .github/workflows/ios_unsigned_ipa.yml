@@ -2,10 +2,11 @@ name: iOS Unsigned IPA
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    tags:
-      - 'build-*'
+  # Temporarily disabled to avoid conflicts with AltServer workflow
+  # push:
+  #   branches: [ main ]
+  # tags:
+  #   - 'build-*'
 
 jobs:
   build-ipa:
