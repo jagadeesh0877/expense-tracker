@@ -1,0 +1,111 @@
+name: iOS Unsigned IPA (HelloSideload)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Ensure XcodeGen installed
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen generate
+
+      - name: Detect container
+        run: |
+          set -euo pipefail
+          WS=$(find . -maxdepth 3 -name "*.xcworkspace" -print -quit || true)
+          PJ=$(find . -maxdepth 3 -name "*.xcodeproj"    -print -quit || true)
+          if [[ -n "$WS" ]]; then
+            echo "CONTAINER=$WS" >> "$GITHUB_ENV"
+            echo "CONTAINER_TYPE=workspace" >> "$GITHUB_ENV"
+          elif [[ -n "$PJ" ]]; then
+            echo "CONTAINER=$PJ" >> "$GITHUB_ENV"
+            echo "CONTAINER_TYPE=project" >> "$GITHUB_ENV"
+          else
+            echo "No Xcode container found" >&2; exit 1
+          fi
+
+      - name: List schemes
+        run: |
+          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
+            xcodebuild -workspace "${CONTAINER}" -list
+          else
+            xcodebuild -project  "${CONTAINER}" -list
+          fi
+
+      - name: Archive HelloSideload (unsigned)
+        env:
+          SCHEME: HelloSideload
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$PWD/build/HelloSideload.xcarchive"
+          if [[ "${CONTAINER_TYPE}" == "workspace" ]]; then
+            xcodebuild \
+              -workspace "${CONTAINER}" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              DEVELOPMENT_TEAM="" \
+              SKIP_INSTALL=NO \
+              ONLY_ACTIVE_ARCH=NO \
+              VALIDATE_PRODUCT=NO \
+              ENABLE_BITCODE=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO
+          else
+            xcodebuild \
+              -project "${CONTAINER}" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "$ARCHIVE_PATH" \
+              archive \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              DEVELOPMENT_TEAM="" \
+              SKIP_INSTALL=NO \
+              ONLY_ACTIVE_ARCH=NO \
+              VALIDATE_PRODUCT=NO \
+              ENABLE_BITCODE=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO
+          fi
+
+      - name: Create IPA
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$PWD/build/HelloSideload.xcarchive"
+          mkdir -p Payload
+          APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -type d -name "*.app" -print -quit)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "No .app found in archive" >&2
+            exit 1
+          fi
+          cp -R "$APP_PATH" Payload/
+          zip -r HelloSideload.ipa Payload
+          rm -rf Payload
+          ls -lah HelloSideload.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloSideload-ipa
+          path: HelloSideload.ipa
